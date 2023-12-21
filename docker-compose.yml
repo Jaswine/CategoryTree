@@ -1,0 +1,9 @@
+version: "3.8"
+
+services:
+  app:
+    build: .
+    container_name: category-tree-boot
+    # restart: on-failure
+    ports:
+      - "5050:5050"
