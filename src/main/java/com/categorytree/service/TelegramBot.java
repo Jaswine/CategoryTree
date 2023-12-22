@@ -1,4 +1,5 @@
 package com.categorytree.service;
+import java.io.Console;
 import java.util.regex.*;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +27,7 @@ public class TelegramBot extends TelegramLongPollingBot {
     final BotConfig config;
 
     @Autowired
-    public TelegramBot(UserRepository userRepository, CategoryRepository categoryRepository ,BotConfig config) {
+    public TelegramBot(UserRepository userRepository, CategoryRepository categoryRepository , BotConfig config) {
         this.userRepository = userRepository;
         this.categoryRepository = categoryRepository;
         this.config = config;
@@ -51,19 +52,17 @@ public class TelegramBot extends TelegramLongPollingBot {
             try {
                 if (messageText.startsWith("/addElement")) {
                     String userInput = update.getMessage().getText().replace("/addElement", "");
-                    System.out.println("/ADD ELEMENT" + userInput);
-                    String[] elements = userInput.split("/");
+                    String[] elements = userInput.trim().split("/");
 
                     System.out.println(elements.length);
                     if (elements.length > 0 ) {
                         addNewElement(chatId, elements);
-                        sendMessage(chatId, "Add new element");
                     } else { 
-                        sendMessage(chatId, "No element");
+                        sendMessage(chatId, "Элементы не найдены");
                     }
                 } else if (messageText.startsWith("/removeElement")) {
                     String userInput = update.getMessage().getText().replace("/removeElement", "");
-                    String[] elements = userInput.split("/");
+                    String[] elements = userInput.trim().split("/");
 
                     removeElement(chatId, elements);
                 } else {
@@ -76,6 +75,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                             showAllCategories(chatId);
                             break;
                         case "/download":
+                            downloadCategories(chatId);
                             break;
                         case "/upload":
                             break;
@@ -83,7 +83,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                             helpCommand(chatId);
                             break;
                         default: 
-                            sendMessage(chatId, "Command was not recognized");
+                            sendMessage(chatId, "Команда не найдена");
                     }
                 }
             } catch (TelegramApiException e) {
@@ -93,14 +93,46 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // Show Start Message
+    // TODO: Show Start Message
     private void startCommandReceived(long chatId, String name) throws TelegramApiException {
         String answer = "Hi,  " + name + "!";
 
         sendMessage(chatId, answer);
     }
 
-    // Show Help Commands
+    // TODO: Send a message
+    private void sendMessage(long chatId, String textToSend)  throws TelegramApiException{
+        SendMessage message = new SendMessage();
+        message.setChatId(String.valueOf(chatId));
+        message.setText(textToSend);
+
+        try {
+            execute(message);
+        } catch (TelegramApiException e) {
+            log.error("Error occurred sending" + e.getMessage());
+        }
+    }
+
+    // TODO: Register user 
+    private void registerUser(long chatId, String username) {
+        if (userRepository.findById(chatId).isEmpty()) {
+            long ChatId = chatId;
+            
+            User user = new User();
+
+            user.seChatId(ChatId);
+            user.setUsername(username);
+            user.setIsAdmin(false);
+
+            userRepository.save(user);
+            System.out.println(user);
+        } else {
+            var user = userRepository.findById(chatId);
+            System.out.println(user);
+        }
+    }
+
+     // TODO: Show Help Commands
     private void helpCommand(long chatId)  throws TelegramApiException{
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -120,82 +152,108 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // Send a message
-    private void sendMessage(long chatId, String textToSend)  throws TelegramApiException{
-        SendMessage message = new SendMessage();
-        message.setChatId(String.valueOf(chatId));
-        message.setText(textToSend);
-
-        try {
-            execute(message);
-        } catch (TelegramApiException e) {
-            log.error("Error occurred sending" + e.getMessage());
-        }
-    }
-
-    // Register user 
-    private void registerUser(long chatId, String username) {
-        if (userRepository.findById(chatId).isEmpty()) {
-            long ChatId = chatId;
-            
-            User user = new User();
-
-            user.seChatId(ChatId);
-            user.setUsername(username);
-            user.setIsAdmin(false);
-
-            userRepository.save(user);
-            System.out.println(user);
-        } else {
-            var user = userRepository.findById(chatId);
-            System.out.println(user);
-        }
-    }
-
-    // Add new element
+    // TODO: Add new element
     @Transactional
     private void addNewElement(long chatId, String[] elements) throws TelegramApiException {
         System.out.println("Matches between slashes:");
 
-        for (String element : elements) {
-            Category existingCategory = categoryRepository.findByCategoryName(element);
+        Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
+        System.out.println("Колличество слов" + elements.length);
+        System.out.println("Существует ли уже категория" + existingCategory);
 
-            if (existingCategory == null) {
-                Category newCategory = new Category();
-                newCategory.setCategoryName(element);
-                categoryRepository.save(newCategory);
-                System.out.println("Added new category: " + newCategory);
-            } else {
-                System.out.println("Category already exists: " + existingCategory);
-                sendMessage(chatId, "Category already exists: " + element);
-            }
+        for (String elem : elements) {
+            System.out.println("Элемент: " + elem);
         }
 
-        System.out.println("Adding new element");
+        if (existingCategory == null && elements.length == 2) {
+            Category newCategory = new Category();
+            newCategory.setCategoryName(elements[1]);
+            categoryRepository.save(newCategory);
+            sendMessage(chatId, "Категория создана успешно"); 
+        } else if (existingCategory != null && elements.length == 2) {
+            sendMessage(chatId, "Категория уже была создана");
+        } else if (existingCategory != null && elements.length == 3) {
+            Category newCategory1 = new Category();
+            newCategory1.setCategoryName(elements[2]);
+            newCategory1.setParent(existingCategory);
+            existingCategory.getChildren().add(newCategory1);
+            categoryRepository.save(newCategory1);
+
+            categoryRepository.save(existingCategory);
+            categoryRepository.save(newCategory1);
+            sendMessage(chatId, "Категория добавлена успешно"); 
+        } else {
+            sendMessage(chatId, "Категория не найдена"); 
+        }
     }
 
-    // Remove element
+    // TODO: Remove element
     private void removeElement(long chatId, String[] elements) throws TelegramApiException {
-        for (String element : elements) {
-            Category existingCategory = categoryRepository.findByCategoryName(element);
+        Category existingCategory = categoryRepository.findByCategoryName(elements[0]);
 
-            if (existingCategory == null) {
-                sendMessage(chatId, "Category not found");
-            } else {
-                categoryRepository.delete(existingCategory);
-                sendMessage(chatId, "Category deleted");
-            }
+        if (existingCategory == null) {
+            sendMessage(chatId, "Категория не найдена");
+        } else {
+            deleteCategoryAndChildren(existingCategory);
+            sendMessage(chatId, "Категория удалена");
         }
     }
 
-    // Show All categories
+    // TODO: Delete category's children
+    private void deleteCategoryAndChildren(Category category) {
+        if (category.getChildren() != null) {
+            for (Category child : category.getChildren()) {
+                deleteCategoryAndChildren(child);
+            }
+        }
+
+        categoryRepository.delete(category);
+    }
+
+    // // TODO: Show All categories
+    // private void showAllCategories(long chatId) throws TelegramApiException {
+    //     Iterable<Category> allCategories = categoryRepository.findAll();
+    //     sendMessage(chatId, "Дерево элементов:");
+        
+    //     for (Category element : allCategories) {
+    //         sendMessage(chatId, element.getCategoryName());
+    //     }  
+    // }
+
+    // TODO: Show All categories
     private void showAllCategories(long chatId) throws TelegramApiException {
         Iterable<Category> allCategories = categoryRepository.findAll();
         sendMessage(chatId, "Дерево элементов:");
-        
-        for (Category element : allCategories) {
-            sendMessage(chatId, element.getCategoryName());
-        }  
+
+        for (Category category : allCategories) {
+            if (category.getChildren() != null && !category.getChildren().isEmpty()) {
+                StringBuilder categoryInfo = new StringBuilder();
+                categoryInfo.append(category.getCategoryName());
+                showCategoryChildren(chatId, category, 1, categoryInfo.toString());   
+            } else {
+                if (category.getParent() == null) {
+                    sendMessage(chatId, category.getCategoryName());
+                }
+            }
+        }
+    }
+
+    // TODO: Render Category and their children
+    private void showCategoryChildren(long chatId, Category category, int level, String categoryInfo) throws TelegramApiException {
+        if (category.getChildren() != null && !category.getChildren().isEmpty()) {
+            for (Category child : category.getChildren()) {
+                StringBuilder childInfo = new StringBuilder(categoryInfo);
+                childInfo.append("\n").append(" - ".repeat(level)).append(child.getCategoryName());
+                sendMessage(chatId, childInfo.toString());
+                showCategoryChildren(chatId, child, level + 1, childInfo.toString());
+            }
+        }
+    }
+
+
+    // TODO: Download Excel File
+    private void downloadCategories(long chatId) throws TelegramApiException {
+
     }
 
 }
