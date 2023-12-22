@@ -1,6 +1,19 @@
 package com.categorytree.service;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Console;
 import java.util.regex.*;
+
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.util.List;
+
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -8,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Update;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import com.categorytree.config.BotConfig;
 import com.categorytree.models.Category;
@@ -93,14 +105,14 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // TODO: Show Start Message
+    // TODO: Начальное сообщение
     private void startCommandReceived(long chatId, String name) throws TelegramApiException {
         String answer = "Hi,  " + name + "!";
 
         sendMessage(chatId, answer);
     }
 
-    // TODO: Send a message
+    // TODO: Рендер сообщений
     private void sendMessage(long chatId, String textToSend)  throws TelegramApiException{
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -113,7 +125,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // TODO: Register user 
+    // TODO: Регистрация пользователя
     private void registerUser(long chatId, String username) {
         if (userRepository.findById(chatId).isEmpty()) {
             long ChatId = chatId;
@@ -132,7 +144,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-     // TODO: Show Help Commands
+     // TODO: Помощь
     private void helpCommand(long chatId)  throws TelegramApiException{
         SendMessage message = new SendMessage();
         message.setChatId(String.valueOf(chatId));
@@ -152,7 +164,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // TODO: Add new element
+    // TODO: Добавление нового элемента
     @Transactional
     private void addNewElement(long chatId, String[] elements) throws TelegramApiException {
         System.out.println("Matches between slashes:");
@@ -187,7 +199,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // TODO: Remove element
+    // TODO: Удаление категории
     private void removeElement(long chatId, String[] elements) throws TelegramApiException {
         Category existingCategory = categoryRepository.findByCategoryName(elements[0]);
 
@@ -199,7 +211,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    // TODO: Delete category's children
+    // TODO: Удаление детей категории
     private void deleteCategoryAndChildren(Category category) {
         if (category.getChildren() != null) {
             for (Category child : category.getChildren()) {
@@ -210,50 +222,79 @@ public class TelegramBot extends TelegramLongPollingBot {
         categoryRepository.delete(category);
     }
 
-    // // TODO: Show All categories
-    // private void showAllCategories(long chatId) throws TelegramApiException {
-    //     Iterable<Category> allCategories = categoryRepository.findAll();
-    //     sendMessage(chatId, "Дерево элементов:");
-        
-    //     for (Category element : allCategories) {
-    //         sendMessage(chatId, element.getCategoryName());
-    //     }  
-    // }
-
-    // TODO: Show All categories
+    // TODO: Вывод всех категорий
     private void showAllCategories(long chatId) throws TelegramApiException {
         Iterable<Category> allCategories = categoryRepository.findAll();
         sendMessage(chatId, "Дерево элементов:");
 
         for (Category category : allCategories) {
-            if (category.getChildren() != null && !category.getChildren().isEmpty()) {
-                StringBuilder categoryInfo = new StringBuilder();
-                categoryInfo.append(category.getCategoryName());
-                showCategoryChildren(chatId, category, 1, categoryInfo.toString());   
-            } else {
-                if (category.getParent() == null) {
-                    sendMessage(chatId, category.getCategoryName());
-                }
+            if (category.getParent() == null) {
+                StringBuilder categoryInfo = new StringBuilder(category.getCategoryName());
+                showCategoryChildren(chatId, category, 1, categoryInfo.toString());
             }
         }
     }
 
-    // TODO: Render Category and their children
+    // TODO: Рендеринг категорий
     private void showCategoryChildren(long chatId, Category category, int level, String categoryInfo) throws TelegramApiException {
         if (category.getChildren() != null && !category.getChildren().isEmpty()) {
             for (Category child : category.getChildren()) {
                 StringBuilder childInfo = new StringBuilder(categoryInfo);
                 childInfo.append("\n").append(" - ".repeat(level)).append(child.getCategoryName());
-                sendMessage(chatId, childInfo.toString());
                 showCategoryChildren(chatId, child, level + 1, childInfo.toString());
             }
+        } else {
+            sendMessage(chatId, categoryInfo);
         }
     }
 
-
-    // TODO: Download Excel File
+    // TODO: Скачать Excel документ
     private void downloadCategories(long chatId) throws TelegramApiException {
+        Iterable<Category> allCategories = categoryRepository.findAll();
 
+        Workbook workbook = new XSSFWorkbook();
+        Sheet sheet = workbook.createSheet("Категории");
+
+        int rowNum = 0;
+        Row headerRow = sheet.createRow(rowNum++);
+        headerRow.createCell(0).setCellValue("Название категории");
+
+        for (Category category : allCategories) {
+            Row row = sheet.createRow(rowNum++);
+            if (category.getParent() == null) {
+                StringBuilder categoryInfo = new StringBuilder(category.getCategoryName());
+                renderCategoryExcel(chatId, category, 1, categoryInfo.toString(), row);
+            }
+        }
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            workbook.write(outputStream);
+
+            SendDocument sendDocument = new SendDocument();
+            sendDocument.setChatId(String.valueOf(chatId));
+            sendDocument.setDocument(new InputFile(new ByteArrayInputStream(outputStream.toByteArray()), "categories.xlsx"));
+
+            execute(sendDocument); // Assuming your class extends TelegramLongPollingBot or TelegramWebhookBot
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        sendMessage(chatId, "Файл был скачан!");
+    }
+
+
+    // TODO: Рендеринг категорий в Excel
+    private void renderCategoryExcel(long chatId, Category category, int level, String categoryInfo, Row row) throws TelegramApiException {
+        if (category.getChildren() != null && !category.getChildren().isEmpty()) {
+            for (Category child : category.getChildren()) {
+                StringBuilder childInfo = new StringBuilder(categoryInfo);
+                // childInfo.append("\n").append(" - ".repeat(level)).append(child.getCategoryName());
+                row.createCell(level).setCellValue(child.getCategoryName());
+                renderCategoryExcel(chatId, child, level + 1, childInfo.toString(), row);
+            }
+        } else {
+            row.createCell(0).setCellValue(categoryInfo);
+        }
     }
 
 }
