@@ -166,7 +166,7 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // TODO: Добавление нового элемента
     @Transactional
-    private void addNewElement(long chatId, String[] elements) throws TelegramApiException {
+    public void addNewElement(long chatId, String[] elements) throws TelegramApiException {
         System.out.println("Matches between slashes:");
 
         Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
@@ -201,50 +201,50 @@ public class TelegramBot extends TelegramLongPollingBot {
 
     // TODO: Удаление категории
     private void removeElement(long chatId, String[] elements) throws TelegramApiException {
-        Category existingCategory = categoryRepository.findByCategoryName(elements[0]);
+        Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
+        System.out.println("exists: " + elements);
+        System.out.println("exists: " + existingCategory);
 
         if (existingCategory == null) {
             sendMessage(chatId, "Категория не найдена");
         } else {
-            deleteCategoryAndChildren(existingCategory);
+            deleteCategoryAndChildren(chatId, existingCategory);
             sendMessage(chatId, "Категория удалена");
         }
     }
 
     // TODO: Удаление детей категории
-    private void deleteCategoryAndChildren(Category category) {
+    private void deleteCategoryAndChildren(long chatId, Category category) throws TelegramApiException {
         if (category.getChildren() != null) {
             for (Category child : category.getChildren()) {
-                deleteCategoryAndChildren(child);
+                deleteCategoryAndChildren(chatId, child);
             }
         }
 
         categoryRepository.delete(category);
     }
 
-    // TODO: Вывод всех категорий
+    // TODO: Функция вывода всех категорий
     private void showAllCategories(long chatId) throws TelegramApiException {
         Iterable<Category> allCategories = categoryRepository.findAll();
         sendMessage(chatId, "Дерево элементов:");
 
         for (Category category : allCategories) {
             if (category.getParent() == null) {
-                StringBuilder categoryInfo = new StringBuilder(category.getCategoryName());
-                showCategoryChildren(chatId, category, 1, categoryInfo.toString());
+                showCategory(chatId, category, 0);
             }
         }
     }
 
-    // TODO: Рендеринг категорий
-    private void showCategoryChildren(long chatId, Category category, int level, String categoryInfo) throws TelegramApiException {
+    // TODO: Функция вывода всех категорий
+    private void showCategory(long chatId, Category category, int level) throws TelegramApiException {
+        StringBuilder categoryInfo = new StringBuilder(" - ".repeat(level) + category.getCategoryName());
+        sendMessage(chatId, categoryInfo.toString());
+    
         if (category.getChildren() != null && !category.getChildren().isEmpty()) {
             for (Category child : category.getChildren()) {
-                StringBuilder childInfo = new StringBuilder(categoryInfo);
-                childInfo.append("\n").append(" - ".repeat(level)).append(child.getCategoryName());
-                showCategoryChildren(chatId, child, level + 1, childInfo.toString());
+                showCategory(chatId, child, level + 1);
             }
-        } else {
-            sendMessage(chatId, categoryInfo);
         }
     }
 
