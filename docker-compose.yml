@@ -3,7 +3,7 @@ version: "3.8"
 services:
   postgres:
     image: postgres:latest
-    container_name: postgres-category-tree-boot
+    container_name: postgresCategoryTreeBoot
     environment:
       POSTGRES_DB: categorytree
       POSTGRES_USER: jaswine
@@ -13,7 +13,7 @@ services:
 
   app:
     build: .
-    container_name: category-tree-boot
+    container_name: categoryTreeBoot
     depends_on:
       - postgres
     ports:

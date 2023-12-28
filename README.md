@@ -52,4 +52,6 @@
 
 ### Установка и запуск с помощью Dockerfile
 
-> docker-compose up --build
+> docker-compose build
+
+> docker-compose up
