@@ -50,8 +50,13 @@
 
 > mvn spring-boot:run
 
+Запуск тестов 
+
+> mvn test
+
 ### Установка и запуск с помощью Dockerfile
 
 > docker-compose build
 
 > docker-compose up
+

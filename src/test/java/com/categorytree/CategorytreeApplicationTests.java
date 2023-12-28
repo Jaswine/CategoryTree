@@ -1,76 +1,78 @@
 package com.categorytree;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
-import org.aspectj.lang.annotation.Before;
-import org.junit.jupiter.api.BeforeEach;
+import java.util.ArrayList;
+
+import org.hibernate.mapping.List;
 import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.springframework.transaction.annotation.Transactional;
 
-import com.categorytree.config.BotConfig;
 import com.categorytree.models.Category;
 import com.categorytree.models.CategoryRepository;
-import com.categorytree.models.UserRepository;
-import com.categorytree.service.TelegramBot;
 
 @SpringBootTest
 class CategorytreeApplicationTests {
 
-    @Mock
+    @Autowired
     private CategoryRepository categoryRepository;
 
-	@Mock
-    private BotConfig botConfig;
+    @Test
+    @Transactional
+    public void testCreateCategorySimple() {
+        Category category = new Category();
+        category.setCategoryName("Decor");
 
-    @InjectMocks
-    private TelegramBot telegramBot;	
+        categoryRepository.save(category);
 
-	@BeforeEach
-    void setUp() {
-        // Инициализация объекта конфигурации перед тестами
-        MockitoAnnotations.openMocks(this);  // Initialize mocks
-
-        when(botConfig.getBotToken()).thenReturn(botConfig.getBotToken());
-        when(botConfig.getBotName()).thenReturn(botConfig.getBotName());
+        Category savedCategory = categoryRepository.findByCategoryName("Decor");
+        assertNotNull(savedCategory);
+        assertEquals("Decor", savedCategory.getCategoryName());
     }
 
+    @Test
+    @Transactional
+    public void testCreateCategoryFull() {
+        Category newCategory = new Category();
+        newCategory.setCategoryName("HomeDecor");
+        categoryRepository.save(newCategory);
+
+        Category exCategory = categoryRepository.findByCategoryName("HomeDecor");
+
+    
+        Category newCategory1 = new Category();
+        newCategory1.setCategoryName("Lamps");
+        newCategory1.setParent(exCategory);
+        categoryRepository.save(newCategory1);
+
+        categoryRepository.save(exCategory);
+
+
+        Category savedCategory = categoryRepository.findByCategoryName("HomeDecor");
+        assertNotNull(savedCategory);
+        assertEquals("HomeDecor", savedCategory.getCategoryName());
+
+        Category savedCategory1 = categoryRepository.findByCategoryName("Lamps");
+        assertNotNull(savedCategory1);
+        assertEquals("Lamps", savedCategory1.getCategoryName());
+        // assertEquals("HomeDecor", savedCategory1.getParent());
+    }
 
     @Test
-	void testCreateCategory() throws TelegramApiException {
-		// Создаем мок Category
-		Category parentCategory = new Category();
-		
-		parentCategory.setId(1L);
-		parentCategory.setCategoryName("Дом и Сад");
+    @Transactional
+    public void testDeleteCategory() {
+        Category category = new Category();
+        category.setCategoryName("Decor");
+        categoryRepository.save(category);
 
-		// Мокируем методы репозитория
-		when(categoryRepository.findByCategoryName("Дом и Сад")).thenReturn(parentCategory);
-		when(categoryRepository.save(any(Category.class))).thenAnswer(invocation -> {
-            Category savedCategory = invocation.getArgument(0);
-            savedCategory.setId(2L);
-            return savedCategory;
-        });
+        categoryRepository.delete(category);
 
-		// Вызываем метод для добавления новой категории
-		telegramBot.addNewElement(123L, new String[]{"/addElement", "Дом и Сад"});
-		// telegramBot.addNewElement(123L, new String[]{"/addElement", "Дом и Сад", "Лампы и освещение"});
-
-		// Проверяем, что репозиторий был вызван с нужными параметрами
-        verify(categoryRepository, times(1)).findByCategoryName("Дом и Сад");
-        verify(categoryRepository, times(1)).save(any(Category.class));
-	}
-
-
-    // @Test
-    // void testRemoveCategory() {
-    //     // Your remove category test logic here
-    // }
+        Category deletedCategory = categoryRepository.findByCategoryName("Decor");
+        assertNull(deletedCategory, "Категория была удалена успешно");
+    }
+    
 }
