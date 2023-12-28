@@ -94,6 +94,9 @@ public class TelegramBot extends TelegramLongPollingBot {
                         case "/help":
                             helpCommand(chatId);
                             break;
+                        case "/changeUserStatus":
+                            changeUserStatus(chatId);
+                            break;
                         default: 
                             sendMessage(chatId, "Команда не найдена");
                     }
@@ -126,21 +129,25 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     // TODO: Регистрация пользователя
-    private void registerUser(long chatId, String username) {
-        if (userRepository.findById(chatId).isEmpty()) {
+    private void registerUser(long chatId, String username) throws TelegramApiException {
+        User user = userRepository.findByTelegramChatId(chatId);
+
+        if (user != null) {
+            System.out.println("Пользователь успешно вошел в аккаунт!   " + user.getTelegramChatId());
+            sendMessage(chatId, "Пользователь успешно вошел в аккаунт!");
+
+        } else {
             long ChatId = chatId;
             
-            User user = new User();
+            User newUser = new User();
+            newUser.setUsername(username);
+            newUser.setIsAdmin(false);
+            newUser.setTelegramChatId(ChatId);
 
-            user.seChatId(ChatId);
-            user.setUsername(username);
-            user.setIsAdmin(false);
+            userRepository.save(newUser);
 
-            userRepository.save(user);
-            System.out.println(user);
-        } else {
-            var user = userRepository.findById(chatId);
-            System.out.println(user);
+            sendMessage(chatId, "Пользователь успешно создан!");
+            System.out.println("Пользователь успешно создан    " + newUser);
         }
     }
 
@@ -154,7 +161,8 @@ public class TelegramBot extends TelegramLongPollingBot {
             /removeElement/<название элемента> - удаление элемента;
             /help - Выводит список всех доступных команд и краткое их описание.
             /download - Скачивает Excel документ с деревом категорий.
-            /upload - Принимает Excel документ с деревом категорий и сохраняет все элементы в базе данных
+            /upload - Принимает Excel документ с деревом категорий и сохраняет все элементы в базе данных.
+            /changeUserStatus - Меняет Статус(Админ, Пользователь).
         """);
 
         try {
@@ -169,47 +177,54 @@ public class TelegramBot extends TelegramLongPollingBot {
     public void addNewElement(long chatId, String[] elements) throws TelegramApiException {
         System.out.println("Matches between slashes:");
 
-        Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
-        System.out.println("Колличество слов" + elements.length);
-        System.out.println("Существует ли уже категория" + existingCategory);
+        User user = userRepository.findByTelegramChatId(chatId);
+        System.out.printf("USER:  " + user.getIsAdmin() + " ;\n\n");
 
-        for (String elem : elements) {
-            System.out.println("Элемент: " + elem);
-        }
+        if (user.getIsAdmin() == true) {
+            Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
 
-        if (existingCategory == null && elements.length == 2) {
-            Category newCategory = new Category();
-            newCategory.setCategoryName(elements[1]);
-            categoryRepository.save(newCategory);
-            sendMessage(chatId, "Категория создана успешно"); 
-        } else if (existingCategory != null && elements.length == 2) {
-            sendMessage(chatId, "Категория уже была создана");
-        } else if (existingCategory != null && elements.length == 3) {
-            Category newCategory1 = new Category();
-            newCategory1.setCategoryName(elements[2]);
-            newCategory1.setParent(existingCategory);
-            existingCategory.getChildren().add(newCategory1);
-            categoryRepository.save(newCategory1);
+            if (existingCategory == null && elements.length == 2) {
+                Category newCategory = new Category();
+                newCategory.setCategoryName(elements[1]);
+                categoryRepository.save(newCategory);
+                sendMessage(chatId, "Категория создана успешно"); 
+            } else if (existingCategory != null && elements.length == 2) {
+                sendMessage(chatId, "Категория уже была создана");
+            } else if (existingCategory != null && elements.length == 3) {
+                Category newCategory1 = new Category();
+                newCategory1.setCategoryName(elements[2]);
+                newCategory1.setParent(existingCategory);
+                existingCategory.getChildren().add(newCategory1);
+                categoryRepository.save(newCategory1);
 
-            categoryRepository.save(existingCategory);
-            categoryRepository.save(newCategory1);
-            sendMessage(chatId, "Категория добавлена успешно"); 
+                categoryRepository.save(existingCategory);
+                categoryRepository.save(newCategory1);
+                sendMessage(chatId, "Категория добавлена успешно"); 
+            } else {
+                sendMessage(chatId, "Категория не найдена"); 
+            }
         } else {
-            sendMessage(chatId, "Категория не найдена"); 
+            sendMessage(chatId, "У вас нет прав"); 
         }
     }
 
     // TODO: Удаление категории
     private void removeElement(long chatId, String[] elements) throws TelegramApiException {
-        Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
-        System.out.println("exists: " + elements);
-        System.out.println("exists: " + existingCategory);
 
-        if (existingCategory == null) {
-            sendMessage(chatId, "Категория не найдена");
+        User user = userRepository.findByTelegramChatId(chatId);
+        System.out.printf("USER:  " + user.getIsAdmin() + " ;\n\n");
+
+        if (user.getIsAdmin() == true) {
+            Category existingCategory = categoryRepository.findByCategoryName(elements[1]);
+
+            if (existingCategory == null) {
+                sendMessage(chatId, "Категория не найдена");
+            } else {
+                deleteCategoryAndChildren(chatId, existingCategory);
+                sendMessage(chatId, "Категория удалена");
+            }
         } else {
-            deleteCategoryAndChildren(chatId, existingCategory);
-            sendMessage(chatId, "Категория удалена");
+            sendMessage(chatId, "У вас нет прав"); 
         }
     }
 
@@ -295,6 +310,21 @@ public class TelegramBot extends TelegramLongPollingBot {
         } else {
             row.createCell(0).setCellValue(categoryInfo);
         }
+    }
+
+    // TODO: Изменение статуса пользователя
+    private void changeUserStatus(long chatId) throws TelegramApiException {
+        User user = userRepository.findByTelegramChatId(chatId);
+        
+        if (user.getIsAdmin() == true) {
+            user.setIsAdmin(false);
+            sendMessage(chatId, "Пользователь лешился прав администратора!");
+        } else {
+            user.setIsAdmin(true);
+            sendMessage(chatId, "Пользователю даны права администратора!");
+        }
+
+        userRepository.save(user);
     }
 
 }

@@ -6,9 +6,7 @@ COPY pom.xml .
 
 COPY src ./src
 
-# RUN mvn dependency:go-offline
-
-# RUN mvn clean install
+RUN mvn clean install
 
 EXPOSE 5050
 

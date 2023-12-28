@@ -12,41 +12,53 @@ public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long ChatId;
+    private Long id;
 
-    private String Username;
-    private Boolean IsAdmin;
+    private String username;
+    private Boolean isAdmin;
+    private Long telegramChatId;
 
-    public Long geChatId() {
-        return ChatId;
+    public Long getId() {
+        return id;
     }
 
-    public void seChatId(Long Id) {
-        this.ChatId = Id;
+    public void getId(Long Id) {
+        this.id = Id;
     }
 
     public String getUsername() {
-        return Username;
+        return username;
     }
 
+    public Long getTelegramChatId() {
+        return telegramChatId;
+    }
+
+    public void setTelegramChatId(Long Id) {
+        this.telegramChatId = Id;
+    }
+
+
+
      public void setUsername(String username) {
-        this.Username = username;
+        this.username = username;
     }
 
     public boolean getIsAdmin() {
-        return IsAdmin;
+        return isAdmin;
     }
 
     public void setIsAdmin(boolean isAdmin) {
-        this.IsAdmin = isAdmin;
+        this.isAdmin = isAdmin;
     }
 
     @Override
     public String toString() {
         return "User{" +
-                "ChatId=" + ChatId +
-                ", Username='" + Username + '\'' +
-                ", IsAdmin='" + IsAdmin + '\'' +
+                "ChatId=" + id +
+                ", Username='" + username + '\'' +
+                ", IsAdmin='" + isAdmin + '\'' +
+                ", TelegramChatId='" + telegramChatId + '\'' +
                 '}';
     }
 }

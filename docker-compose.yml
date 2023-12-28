@@ -1,9 +1,20 @@
 version: "3.8"
 
 services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres-category-tree-boot
+    environment:
+      POSTGRES_DB: categorytree
+      POSTGRES_USER: jaswine
+      POSTGRES_PASSWORD: 54444812
+    ports:
+      - "5432:5432"
+
   app:
     build: .
     container_name: category-tree-boot
-    # restart: on-failure
+    depends_on:
+      - postgres
     ports:
       - "5050:5050"
